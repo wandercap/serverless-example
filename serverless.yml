@@ -1,0 +1,110 @@
+frameworkVersion: '>=2.0.0 <3.0.0'
+service: serverless-example
+
+provider:
+  name: aws
+  runtime: nodejs12.x
+  stage: ${opt:stage, 'devel'}
+  stackName: ${self:custom.prefix}
+  apiName: ${self:custom.prefix}
+  apiGateway:
+    metrics: true
+    shouldStartNameWithService: true
+    description: 'Serverless Example API'
+
+custom:
+  prefix: ${opt:stage, self:provider.stage}-${opt:service, self:service}
+  serverless-offline:
+    noTimeout: true
+    useChildProcesses: true
+    httpPort: 3001
+    lambdaPort: 3002
+  localstack:
+    stages:
+      - local
+    host: http://localhost
+    autostart: false
+    lambda:
+      mountCode: false
+    docker:
+      sudo: False
+
+plugins:
+  - serverless-webpack
+  - serverless-localstack
+  - serverless-offline
+
+functions:
+  hello:
+    name: ${self:custom.prefix}-hello
+    handler: src/hello.handler
+    events:
+      - http:
+          method: get
+          path: hello
+          integration: lambda
+          authorizer:
+            arn: xxx:xxx:Lambda-Name
+            identitySource: method.request.header.Authorization
+            identityValidationExpression: someRegex
+            resultTtlInSeconds: 0
+          request:
+            passThrough: NEVER
+            template:
+              application/json: '{ "foo" : "$input.params(''bar'')" }'
+            parameters:
+              headers:
+                principalId:
+                  required: true
+                  mappedValue: context.authorizer.principalId
+          response:
+            headers:
+              Content-Type: "'application/json'"
+            template: $input.path('$')
+            statusCodes:
+              200:
+                pattern: ''
+                template: $input.path('$.body')
+              201:
+                pattern: '.*"statusCode":201.*'
+                template: $input.path('$.body')
+              204:
+                pattern: '.*"statusCode":204.*'
+                template: $input.path('$.body')
+              400:
+                pattern: '.*"statusCode":400.*'
+                template:
+                  application/json: >
+                    #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
+                      {
+                        "statusCode": $errorMessageObj.statusCode,
+                        "message" : "$util.parseJson($errorMessageObj.body).message",
+                      }
+
+              401:
+                pattern: '.*"statusCode":401.*'
+                template:
+                  application/json: >
+                    #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
+                      {
+                        "statusCode": $errorMessageObj.statusCode,
+                        "message" : "$util.parseJson($errorMessageObj.body).message",
+                      }
+              404:
+                pattern: '.*"statusCode":404.*'
+                template:
+                  application/json: >
+                    #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
+                      {
+                        "statusCode": $errorMessageObj.statusCode,
+                        "message" : "$util.parseJson($errorMessageObj.body).message",
+                      }
+              500:
+                pattern: '.*"statusCode":500.*'
+                template:
+                  application/json: >
+                    #set ($errorMessageObj = $util.parseJson($input.path('$.errorMessage')))
+                      {
+                        "statusCode": $errorMessageObj.statusCode,
+                        "message" : "$util.parseJson($errorMessageObj.body).message",
+                      }
